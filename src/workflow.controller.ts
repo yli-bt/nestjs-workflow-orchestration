@@ -2,42 +2,43 @@ import { Controller, Get } from '@nestjs/common';
 import { AppService } from './app.service';
 import { Connection, WorkflowClient } from '@temporalio/client';
 import { example } from './workflows';
+import * as constants from './constants';
 
 @Controller('workflows')
 export class WorkflowController {
-  constructor(private readonly appService: AppService) {}
+    constructor(private readonly appService: AppService) {}
 
-  @Get('run')
-  run() {
-    return this.runWorkflow();
-  }
+    @Get('run')
+    run() {
+        return this.runWorkflow();
+    }
 
-  async runWorkflow(): Promise<{ msg: string, result: { greeting: string, greeting_two: string, greeting_three: string } }> {
-    //return this.appService.getVersion();
+    async runWorkflow(): Promise<{
+        msg: string;
+        result: {
+            greeting: string;
+            greeting_two: string;
+            greeting_three: string;
+        };
+    }> {
+        console.log(__filename, 'runWorkflow');
 
-    const connection = new Connection({
-      // // Connect to localhost with default ConnectionOptions.
-      // // In production, pass options to the Connection constructor to configure TLS and other settings:
-      // address: 'foo.bar.tmprl.cloud', // as provisioned
-      // tls: {} // as provisioned
-    });
+        const connection = new Connection();
+        const client = new WorkflowClient(connection.service, {
+            namespace: constants.namespace,
+        });
 
-    const client = new WorkflowClient(connection.service, {
-      // namespace: 'default', // change if you have a different namespace
-    });
+        const handle = await client.start(example, {
+            args: ['Yicheng'],
+            taskQueue: constants.task_queue,
+            workflowId: constants.workflow_id_prefix + Math.floor(Math.random() * 1000),
+        });
 
-    const handle = await client.start(example, {
-      args: ['Yicheng'], // type inference works! args: [name: string]
-      taskQueue: 'hello-world',
-      // in practice, use a meaningful business id, eg customerId or transactionId
-      workflowId: 'wf-id-' + Math.floor(Math.random() * 1000),
-    });
+        const msg = `Started workflow ${handle.workflowId}`;
+        const result = await handle.result();
 
-    const msg = `Started workflow ${handle.workflowId}`;
+        console.log(__filename, 'runWorkflow', result);
 
-    // optional: wait for client result
-    const result = await handle.result(); // Hello, Temporal!
-
-    return { msg, result };
-  }
+        return { msg, result };
+    }
 }
