@@ -1,31 +1,37 @@
 import { Connection, WorkflowClient } from '@temporalio/client';
-import { example } from './workflows';
+import * as constants from './constants';
+import { dslHandler } from './workflows';
 
-async function run() {
-    const connection = new Connection({
-        // // Connect to localhost with default ConnectionOptions.
-        // // In production, pass options to the Connection constructor to configure TLS and other settings:
-        // address: 'foo.bar.tmprl.cloud', // as provisioned
-        // tls: {} // as provisioned
+const jsonDSL: string = `{
+    "name": "Low Budget DSL",
+    "input": ["Yicheng"],
+    "states": [
+        { "functionRef": "greet" },
+        { "functionRef": "greet_two" },
+        { "functionRef": "greet_three" }
+    ]
+}`;
+
+async function run(dsl: string) {
+    const workflow = JSON.parse(dsl);
+    const workflowId = constants.workflow_id_prefix + Math.floor(Math.random() * 1000);
+    const connection = new Connection();
+    const client = new WorkflowClient(connection.service);
+    const handle = await client.start(dslHandler, {
+        args: [ workflow ],
+        taskQueue: constants.task_queue,
+        workflowId: workflowId
     });
-
-    const client = new WorkflowClient(connection.service, {
-        // namespace: 'default', // change if you have a different namespace
-    });
-
-    const handle = await client.start(example, {
-        args: ['Yicheng'], // type inference works! args: [name: string]
-        taskQueue: 'hello-world',
-        // in practice, use a meaningful business id, eg customerId or transactionId
-        workflowId: 'wf-id-' + Math.floor(Math.random() * 1000),
-    });
-    console.log(`Started workflow ${handle.workflowId}`);
-
-    // optional: wait for client result
-    console.log(await handle.result()); // Hello, Temporal!
+    const result = await handle.result();
+    return {
+        workflowId,
+        result
+    };
 }
 
-run().catch((err) => {
+run(jsonDSL).then(res => {
+    console.log('run.then result', JSON.stringify(res, null, 4));
+}).catch((err) => {
     console.error(err);
     process.exit(1);
 });
